@@ -1,0 +1,851 @@
+---
+title: "Data Analysis"
+author: "Daniella Wilkinson"
+output: html_document
+---
+
+```{r initialize.packages, include=FALSE}
+
+# INSTALL PACKAGES
+# install.packages("haven")
+# install.packages("dplyr")
+# install.packages("table1")
+# install.packages("sjPlot")
+# install.packages("ggplot2")
+
+# INITIALIZE PACKAGES
+library(haven)
+library(dplyr)
+library(table1)
+library(sjPlot)
+library(ggplot2)
+
+# ASSIGN WORKING DIRECTORY
+getwd()
+setwd("~/Desktop/Puerto Rico")
+getwd()
+
+```
+
+```{r initialize.datasets, include=FALSE}
+
+# LOAD DATASETS
+load("Puerto Rico 2022_puma.RData")
+acs <- read_stata("Puerto Rico 2022_acs")
+svi <- read.csv("Puerto Rico 2022_svi.csv")
+
+# DATASET 1 
+# unique(pumas)
+# summary(pumas)
+
+# DATASET 2 
+# unique(svi)
+# summary(svi)
+
+# DATASET 3
+# unique(acs)
+# summary(acs)
+
+```
+
+------------------------------------------------------------------------
+
+## Introduction
+
+Social stratification plays a crucial role in determining how structural barriers and societal institutions in the personal, private, and professional social sectors limit an individual's socioeconomic trajectory in society. This stratification, influenced by several ascribed and achieved social characteristics, significantly impacts an individual's social mobility. For minority populations, this often means an increasing amount of social vulnerability due to socioeconomic stratification, racism, and inequality. Social stratification effectively confines minority populations to specific social outcomes and characteristic patterns, such as federal, state, or local trends, that can provide statistically significant correlations to the relationship between social vulnerability, socioeconomic outcomes, and residential region.
+
+This study aims to comprehensively investigate The Social Vulnerability Index (SVI) estimates of Puerto Rican citizens and their associated demographic data. By leveraging reputable data sources, including the 5-year American Community Survey (ACS) (2018-2022), the Social Vulnerability Index (SVI) (2022), and the Public Use Microdata Area (PUMA) (2022), I seek to uncover relationships between social vulnerability and key socioeconomic variables at the respondent level. The potential impact of this study is massive, as it aims to inform forthcoming research and policy, particularly in addressing the socioeconomic challenges faced by Minority populations in Puerto Rico at the municipal level, underlining the significance of our research in shaping future policies and interventions. 
+
+## Background
+
+#### Literature Review
+
+The literature emphasizes the disproportionate impact of natural disasters like Hurricane Maria on Puerto Ricans, highlighting migration dynamics, climate-induced displacement, housing insecurity, and economic pressures on marginalized communities (Acosta et al., 2020; Negrón et al., 2024; Rivera, 2020). These studies outline the importance of understanding the demographic and socioeconomic factors contributing to vulnerability, such as migration, income inequality, and limited access to resources.
+
+The literature emphasizes that Puerto Rican populations are often understudied, resulting in a lack of comprehensive studies and data about them. Consequently, the use of existing data to guide disaster preparedness and relief efforts is not as extensive or effective as it could be. Hurricane Maria highlighted these issues, prompting my research into the socioeconomic stratification of Puerto Rican adults.The literature emphasizes that Puerto Rican populations are often understudied, resulting in a lack of comprehensive studies and data about them. Consequently, the use of existing data to guide disaster preparedness and relief efforts is not as extensive or effective as it could be. Hurricane Maria highlighted these issues, prompting my research into the socioeconomic stratification of Puerto Rican adults.
+
+------------------------------------------------------------------------
+
+#### Data Review
+
+This study employs three reputable data sources, including the 5-year American Community Survey (ACS) (2018-2022), the Social Vulnerability Index (SVI) (2022), and the Public Use Microdata Area (PUMA) (2022).
+
+**American Community Survey**
+
+The American Community Survey (ACS) is a survey conducted by the U.S. Census Bureau that collects detailed information about people's lives, such as their income, education, employment, and housing. This information assists in understanding the needs of different communities and guides decisions about where to direct resources and services.
+
+**Social Vulnerability Index**
+
+The Social Vulnerability Index (SVI), developed by the CDC, is a tool used to identify communities that may need more help during disasters like hurricanes, floods, or pandemics. It looks at factors like income, education, housing, and access to healthcare to determine a community's vulnerability. The higher the score, the more vulnerable the community is to harm during a disaster.
+
+**Public Use Microdata Area**
+
+PUMA stands for Public Use Microdata Areas, which are geographic areas used to report census data. These areas are smaller than counties and are designed to provide more detailed and localized information. PUMA often breaks down the data from the ACS to give a clearer picture of what is happening in specific neighborhoods or regions.
+
+```{r merge.datasets, include=FALSE}
+# PREPARE MERGE : DATASET 1, DATASET 2 by "STCNTY" (State County (Municipality))
+
+# initialize "STCNTY" IN DATASET 1
+pumas$STCNTY <- pumas$STATEFP * 1000 + pumas$COUNTYFP
+
+# subset DATASET 2 
+subset.DATA1 <- subset(svi, , c(RPL_THEMES, STCNTY, E_TOTPOP))
+
+# EXECUTE MERGE : DATASET 1, DATASET 2 by "STCNTY" (State County (Municipality))
+merge.DATA <- merge(pumas, svi, by="STCNTY")
+
+subset.DATA2 <- subset(merge.DATA, , c(RPL_THEMES, STCNTY, E_TOTPOP, PUMA5CE))
+# PUMA5CE <- arbitrary municipality numeric ID 
+# STCNTY <- literal municipality numeric ID 
+
+# REFINE DATA : Pass 1 
+
+refine.data1 <- aggregate(subset.DATA2, by=list(subset.DATA2$STCNTY), FUN = mean, na.rm=TRUE)
+
+subset.DATA3 <- subset(refine.data1, , c(E_TOTPOP, PUMA5CE))
+
+# REFINE DATA : Pass 2
+
+refine.data2 <- aggregate(subset.DATA3, by=list(refine.data1$PUMA5CE), FUN = sum, na.rm=TRUE)
+
+refine.data2$PUMA5CE <- refine.data2$Group.1
+refine.data2$Group.1 <- NULL
+
+refine.data2$PumasPOP <- refine.data2$E_TOTPOP
+refine.data2$E_TOTPOP <- NULL
+
+# REFINE DATA : Pass 3 
+refine.data3 <- merge(refine.data2, refine.data1, by = "PUMA5CE")
+
+# initialize PUMAS proportion measure
+# calculate PUMAS proportion measure
+refine.data3$PumasPROP <- refine.data3$E_TOTPOP / refine.data3$PumasPOP
+# initialize PUMAS average measure 
+# calculate PUMAS average measure
+refine.data3$PumasAVG <- refine.data3$PumasPROP * refine.data3$RPL_THEMES
+
+# REFINE DATA : Pass 4 
+
+refine.data4 <- aggregate(refine.data3, by=list(refine.data3$PUMA5CE), FUN=sum)
+
+subset.DATA4 <- subset(refine.data4, , c(Group.1, PumasAVG))
+
+# REFINE DATA : Pass 5 
+
+Puerto.RicoPOP.1 <- merge(subset.DATA4, acs, by.x = "Group.1", by.y = "puma")
+
+# initialize Puerto.RicoPOP.1
+# initialize Puerto.RicoPOP.2
+Puerto.RicoPOP.2 <- Puerto.RicoPOP.1
+
+```
+
+```{r FILTER.adult.respondent, include=FALSE}
+
+# adult respondents  
+Puerto.RicoPOP.2$age <- ifelse(
+  Puerto.RicoPOP.1$age >= 18, Puerto.RicoPOP.1$age, NA
+)
+```
+
+```{r IDENTIFY.SVI.vulnerability, include=FALSE}
+
+# Minor Vulnerability
+Puerto.RicoPOP.2$PumasAVG.scale [
+  Puerto.RicoPOP.2$PumasAVG > 0.00 &
+  Puerto.RicoPOP.2$PumasAVG < 0.25
+] <- 1
+
+# Moderate Vulnerability
+Puerto.RicoPOP.2$PumasAVG.scale [
+  Puerto.RicoPOP.2$PumasAVG > 0.25 &
+  Puerto.RicoPOP.2$PumasAVG < 0.50
+] <- 2
+
+# Significant Vulnerability
+Puerto.RicoPOP.2$PumasAVG.scale [
+  Puerto.RicoPOP.2$PumasAVG > 0.50 &
+  Puerto.RicoPOP.2$PumasAVG < 0.75
+] <- 3
+
+# Severe Vulnerability
+Puerto.RicoPOP.2$PumasAVG.scale [
+  Puerto.RicoPOP.2$PumasAVG > 0.75 &
+  Puerto.RicoPOP.2$PumasAVG < 1.00
+] <- 4
+
+```
+
+```{r RECODE.citizenship.stat, include=FALSE}
+
+# citizenship status 
+Puerto.RicoPOP.2$citizenship.stat [
+  Puerto.RicoPOP.1$citizen == 0
+] <- NA
+
+Puerto.RicoPOP.2$citizenship.stat [
+  Puerto.RicoPOP.1$bpl == 110
+] <- "Born USA, Citizen"
+
+Puerto.RicoPOP.2$citizenship.stat [
+  Puerto.RicoPOP.1$citizen == 1
+] <- "Born Abroad, Eligibile Citizen"
+
+Puerto.RicoPOP.2$citizenship.stat [
+  Puerto.RicoPOP.1$citizen == 2
+] <- "Born Abroad, Naturalized Citizen"
+
+Puerto.RicoPOP.2$citizenship.stat [
+  Puerto.RicoPOP.1$citizen == 3 |
+  Puerto.RicoPOP.1$citizen == 4
+] <- "Residency Status, Other"
+
+Puerto.RicoPOP.2$citizenship.stat [
+  Puerto.RicoPOP.1$citizen == 5 |
+  Puerto.RicoPOP.1$citizen == 8 |
+  Puerto.RicoPOP.1$citizen == 9
+] <- "Unkown Citizenship Status"
+
+```
+
+```{r RECODE.socioecon.stat, include=FALSE}
+
+# education attainment 
+Puerto.RicoPOP.2$education [
+  Puerto.RicoPOP.1$educ == 99
+] <- NA
+
+Puerto.RicoPOP.2$education [
+  Puerto.RicoPOP.1$educ == 0
+] <- "Unknown, No Formal Education"
+
+Puerto.RicoPOP.2$education [
+  Puerto.RicoPOP.1$educ == 1
+] <- "Elementary"
+
+Puerto.RicoPOP.2$education [
+  Puerto.RicoPOP.1$educ == 2
+] <- "Junior High"
+
+Puerto.RicoPOP.2$education [
+  Puerto.RicoPOP.1$educ == 3 |
+  Puerto.RicoPOP.1$educ == 4 |
+  Puerto.RicoPOP.1$educ == 5 
+] <- "Some High School"
+
+Puerto.RicoPOP.2$education [
+  Puerto.RicoPOP.1$educ == 6 
+] <- "High School Graduate"
+
+Puerto.RicoPOP.2$education [
+  Puerto.RicoPOP.1$educ == 7 |
+  Puerto.RicoPOP.1$educ == 8 |
+  Puerto.RicoPOP.1$educ == 9 
+] <- "Some College"
+
+Puerto.RicoPOP.2$education [
+  Puerto.RicoPOP.1$educ == 10 |
+  Puerto.RicoPOP.1$educ == 11 
+] <- "College Graduate"
+
+# employment status 
+
+Puerto.RicoPOP.2$employment.stat [
+  Puerto.RicoPOP.1$empstat == 0 
+] <- NA
+
+Puerto.RicoPOP.2$employment.stat [
+  Puerto.RicoPOP.1$empstat == 1
+] <- "Employed"
+
+Puerto.RicoPOP.2$employment.stat [
+  Puerto.RicoPOP.1$empstat == 2 |
+  Puerto.RicoPOP.1$empstat == 3
+] <- "Unemployed"
+
+Puerto.RicoPOP.2$employment.stat [
+  Puerto.RicoPOP.1$empstat == 9 
+] <- "Unknown Employment Status"
+
+# receives public subsidiary income 
+Puerto.RicoPOP.2$onSUBSIDY <- as.character(
+  Puerto.RicoPOP.2$incwelfr)
+
+Puerto.RicoPOP.2$onSUBSIDY <- as.character(
+  Puerto.RicoPOP.2$incsupp)
+
+Puerto.RicoPOP.2$onSUBSIDY [
+  Puerto.RicoPOP.1$incwelfr == 99999 |
+  Puerto.RicoPOP.1$incsupp == 99999 |
+  Puerto.RicoPOP.1$foodstmp == 0
+] <- "Not Applicable"
+
+Puerto.RicoPOP.2$onSUBSIDY [
+  Puerto.RicoPOP.1$incwelfr > 0 |
+  Puerto.RicoPOP.1$incsupp > 0 |
+  Puerto.RicoPOP.1$foodstmp == 2
+] <- 1
+
+Puerto.RicoPOP.2$onSUBSIDY [
+  Puerto.RicoPOP.1$incwelfr == 0 |
+  Puerto.RicoPOP.1$incsupp == 0 |
+  Puerto.RicoPOP.1$foodstmp == 1
+] <- 0
+```
+
+```{r RECODE.minority.stat, include=FALSE}
+
+# sex characteristics 
+Puerto.RicoPOP.2$sex <- as.character(
+  Puerto.RicoPOP.1$sex
+)
+
+Puerto.RicoPOP.2$sex [
+  Puerto.RicoPOP.1$sex == 0
+] <- NA
+
+Puerto.RicoPOP.2$sex [
+  Puerto.RicoPOP.1$sex == 1
+] <- "Male"
+
+Puerto.RicoPOP.2$sex [
+  Puerto.RicoPOP.1$sex == 2
+] <- "Female"
+
+# race characteristics
+Puerto.RicoPOP.2$race <- as.character(
+  Puerto.RicoPOP.2$race)
+
+Puerto.RicoPOP.2$race [
+  Puerto.RicoPOP.1$race == 1
+] <- "White"
+
+Puerto.RicoPOP.2$race [
+  Puerto.RicoPOP.1$race == 2
+] <- "Black or African American"
+
+Puerto.RicoPOP.2$race [
+  Puerto.RicoPOP.1$race == 3
+] <- "American Indian or Alaska Native"
+
+Puerto.RicoPOP.2$race [
+  Puerto.RicoPOP.1$race == 4 |
+  Puerto.RicoPOP.1$race == 5 |
+  Puerto.RicoPOP.1$race == 6 
+] <- "Asian"
+
+Puerto.RicoPOP.2$race [
+  Puerto.RicoPOP.1$race == 7
+] <- "Other Race"
+
+Puerto.RicoPOP.2$race [
+  Puerto.RicoPOP.1$race == 8 |
+  Puerto.RicoPOP.1$race == 9
+] <- "Multiracial"
+
+# ethnicity characteristics 
+Puerto.RicoPOP.2$hispanic [
+  Puerto.RicoPOP.1$hispan == 0
+] <- "Not Hispanic"
+
+Puerto.RicoPOP.2$hispanic [
+  Puerto.RicoPOP.1$hispan == 1 |
+  Puerto.RicoPOP.1$hispan == 2 |
+  Puerto.RicoPOP.1$hispan == 3 |
+  Puerto.RicoPOP.1$hispan == 4
+] <- "Hispanic"
+
+Puerto.RicoPOP.2$hispanic [
+  Puerto.RicoPOP.1$hispan == 9
+] <- "Unreported"
+
+unique(Puerto.RicoPOP.1$hispan)
+
+# linguistic characteristics
+Puerto.RicoPOP.2$eng.isolation [
+  Puerto.RicoPOP.1$lingisol == 0
+  ] <- NA
+
+Puerto.RicoPOP.2$eng.isolation [
+  Puerto.RicoPOP.1$lingisol == 2
+] <- 1
+
+Puerto.RicoPOP.2$eng.isolation [
+  Puerto.RicoPOP.1$lingisol == 1
+] <- 0
+
+# linguistic characteristics
+Puerto.RicoPOP.2$eng.proficiency [
+  Puerto.RicoPOP.1$speakeng == 0 |
+  Puerto.RicoPOP.1$speakeng == 7 |
+  Puerto.RicoPOP.1$speakeng == 8 |
+  Puerto.RicoPOP.1$speakeng == 9
+] <- NA
+
+Puerto.RicoPOP.2$eng.proficiency [
+  Puerto.RicoPOP.1$speakeng == 1
+] <- "Inproficient"
+
+Puerto.RicoPOP.2$eng.proficiency [
+  Puerto.RicoPOP.1$speakeng == 6
+] <- "Poor Proficiency"
+
+Puerto.RicoPOP.2$eng.proficiency [
+  Puerto.RicoPOP.1$speakeng == 2 |
+  Puerto.RicoPOP.1$speakeng == 5 
+] <- "Good Proficiency"
+
+Puerto.RicoPOP.2$eng.proficiency [
+  Puerto.RicoPOP.1$speakeng == 3 |
+  Puerto.RicoPOP.1$speakeng == 4
+] <- "Excellent Proficiency"
+
+Puerto.RicoPOP.2$eng.proficiency [
+  Puerto.RicoPOP.1$speakeng == 3 
+] <- "Monolingual"
+
+# disability characteristics 
+Puerto.RicoPOP.2$disability [
+  Puerto.RicoPOP.1$diffmob == 0
+] <- NA
+  
+Puerto.RicoPOP.2$disability [
+  Puerto.RicoPOP.1$diffmob == 2
+] <- 1
+
+Puerto.RicoPOP.2$disability [
+  Puerto.RicoPOP.1$diffmob == 1
+] <- 0
+
+# disability characteristics 
+Puerto.RicoPOP.2$disability [
+  Puerto.RicoPOP.1$diffrem == 0
+] <- NA
+  
+Puerto.RicoPOP.2$disability [
+  Puerto.RicoPOP.1$diffrem == 2
+] <- 1
+
+Puerto.RicoPOP.2$disability [
+  Puerto.RicoPOP.1$diffrem == 1
+] <- 0
+
+# disability characteristics 
+Puerto.RicoPOP.2$disability [
+  Puerto.RicoPOP.1$diffeye == 0
+] <- NA
+  
+Puerto.RicoPOP.2$disability [
+  Puerto.RicoPOP.1$diffeye == 2
+] <- 1
+
+Puerto.RicoPOP.2$disability [
+  Puerto.RicoPOP.1$diffeye == 1
+] <- 0
+
+# disability characteristics 
+Puerto.RicoPOP.2$disability [
+  Puerto.RicoPOP.1$diffphys == 0
+] <- NA
+  
+Puerto.RicoPOP.2$disability [
+  Puerto.RicoPOP.1$diffphys == 2
+] <- 1
+
+Puerto.RicoPOP.2$disability [
+  Puerto.RicoPOP.1$diffphys == 1
+] <- 0
+
+# disability characteristics 
+Puerto.RicoPOP.2$disability [
+  Puerto.RicoPOP.1$diffcare == 0
+] <- NA
+  
+Puerto.RicoPOP.2$disability [
+  Puerto.RicoPOP.1$diffcare == 2
+] <- 1
+
+Puerto.RicoPOP.2$disability [
+  Puerto.RicoPOP.1$diffcare == 1
+] <- 0
+
+# disability characteristics 
+Puerto.RicoPOP.2$disability [
+  Puerto.RicoPOP.1$diffhear == 0
+] <- NA
+  
+Puerto.RicoPOP.2$disability [
+  Puerto.RicoPOP.1$diffhear == 2
+] <- 1
+
+Puerto.RicoPOP.2$disability [
+  Puerto.RicoPOP.1$diffhear == 1
+] <- 0
+```
+
+```{r RECODE.housing.stat, include=FALSE}
+
+# housing payment
+Puerto.RicoPOP.2$housing.payment [
+  Puerto.RicoPOP.1$ownershp == 0 |
+  Puerto.RicoPOP.1$mortgage == 0
+] <- "Unreported"
+
+Puerto.RicoPOP.2$housing.payment [
+  Puerto.RicoPOP.1$mortgage == 1
+] <- "Property Owner"
+
+Puerto.RicoPOP.2$housing.payment [
+  Puerto.RicoPOP.1$mortgage == 2 |
+  Puerto.RicoPOP.1$mortgage == 3 |
+  Puerto.RicoPOP.1$mortgage == 4
+] <- "Monthly Mortgage Payment"
+
+Puerto.RicoPOP.2$housing.payment [
+  Puerto.RicoPOP.1$ownershp == 2
+] <- "Monthly Rental Payment"
+
+# housing payment 
+Puerto.RicoPOP.2$add.housing.payment [
+  Puerto.RicoPOP.1$mortgag2 == 0 |
+  Puerto.RicoPOP.1$mortgag2 == 1
+] <- "No Additional Payment"
+
+Puerto.RicoPOP.2$add.housing.payment [
+  Puerto.RicoPOP.1$mortgag2 == 2 |
+  Puerto.RicoPOP.1$mortgag2 == 3
+] <- "2nd Mortgage Payment"
+
+Puerto.RicoPOP.2$add.housing.payment [
+  Puerto.RicoPOP.1$mortgag2 == 4
+] <- "Home Equity Loan Payment"
+
+Puerto.RicoPOP.2$add.housing.payment [
+  Puerto.RicoPOP.1$mortgag2 == 5
+] <- "Both"
+
+# housing development 
+Puerto.RicoPOP.2$housing.development [
+  Puerto.RicoPOP.1$unitsstr == 0
+] <- NA
+
+Puerto.RicoPOP.2$housing.development [
+  Puerto.RicoPOP.1$unitsstr == 1
+] <- "Mobile Home, Trailer Home"
+
+Puerto.RicoPOP.2$housing.development [
+  Puerto.RicoPOP.1$unitsstr == 2
+] <- "Homeless, Non-traditional Dwelling"
+
+Puerto.RicoPOP.2$housing.development [
+  Puerto.RicoPOP.1$unitsstr == 3
+] <- "Single-Fam House, Detached"
+
+Puerto.RicoPOP.2$housing.development [
+  Puerto.RicoPOP.1$unitsstr == 4
+] <- "Single-Fam House, Attached"
+
+Puerto.RicoPOP.2$housing.development [
+  Puerto.RicoPOP.1$unitsstr == 5 |
+  Puerto.RicoPOP.1$unitsstr == 6 |
+  Puerto.RicoPOP.1$unitsstr == 7 |
+  Puerto.RicoPOP.1$unitsstr == 8 |
+  Puerto.RicoPOP.1$unitsstr == 9 |
+  Puerto.RicoPOP.1$unitsstr == 10
+] <- "Multi-Fam House, Appt. or Townhouse"
+
+# household demographic
+Puerto.RicoPOP.2$household.dem [
+  Puerto.RicoPOP.1$marst == 9
+] <- NA
+
+Puerto.RicoPOP.2$household.dem [
+  Puerto.RicoPOP.1$marst == 1 &
+  Puerto.RicoPOP.1$nchild > 0 
+] <- "Married w/ children, present partner"
+
+Puerto.RicoPOP.2$household.dem [
+  Puerto.RicoPOP.1$marst == 1 &
+  Puerto.RicoPOP.1$nchild == 0 
+] <- "Married w/o children, present partner"
+
+Puerto.RicoPOP.2$household.dem [
+  Puerto.RicoPOP.1$marst == 2 &
+  Puerto.RicoPOP.1$nchild > 0 
+] <- "Married w/ children, absent partner"
+
+Puerto.RicoPOP.2$household.dem [
+  Puerto.RicoPOP.1$marst == 2 &
+  Puerto.RicoPOP.1$nchild == 0 
+] <- "Married w/o children, absent partner"
+
+Puerto.RicoPOP.2$household.dem [
+  Puerto.RicoPOP.1$marst == 3 &
+  Puerto.RicoPOP.1$nchild > 0 
+] <- "Separeted w/ children"
+
+Puerto.RicoPOP.2$household.dem [
+  Puerto.RicoPOP.1$marst == 3 &
+  Puerto.RicoPOP.1$nchild == 0 
+] <- "Separated w/o children"
+
+Puerto.RicoPOP.2$household.dem [
+  Puerto.RicoPOP.1$marst == 4 &
+  Puerto.RicoPOP.1$nchild > 0 
+] <- "Divorced w/ children"
+
+Puerto.RicoPOP.2$household.dem [
+  Puerto.RicoPOP.1$marst == 4 &
+  Puerto.RicoPOP.1$nchild == 0 
+] <- "Divorced w/o children"
+
+Puerto.RicoPOP.2$household.dem [
+  Puerto.RicoPOP.1$marst == 5 &
+  Puerto.RicoPOP.1$nchild > 0 
+] <- "Widowed w/ children"
+
+Puerto.RicoPOP.2$household.dem [
+  Puerto.RicoPOP.1$marst == 5 &
+  Puerto.RicoPOP.1$nchild == 0 
+] <- "Widowed w/o children"
+
+Puerto.RicoPOP.2$household.dem [
+  Puerto.RicoPOP.1$marst == 6 &
+  Puerto.RicoPOP.1$nchild > 0 
+] <- "Single w/ children"
+
+Puerto.RicoPOP.2$household.dem [
+  Puerto.RicoPOP.1$marst == 6 &
+  Puerto.RicoPOP.1$nchild == 0 
+] <- "Single w/o children"
+
+```
+
+```{r RECODE.trans.stat, include=FALSE}
+
+Puerto.RicoPOP.2$commute [
+  Puerto.RicoPOP.1$tranwork == 0
+  ] <- "Unreported"
+
+Puerto.RicoPOP.2$commute [
+  Puerto.RicoPOP.1$tranwork == 10 |
+  Puerto.RicoPOP.1$tranwork == 11 |
+  Puerto.RicoPOP.1$tranwork == 12 |
+  Puerto.RicoPOP.1$tranwork == 14 |
+  Puerto.RicoPOP.1$tranwork == 15 |
+  Puerto.RicoPOP.1$tranwork == 20
+] <- "Driver, Private vehicle"
+
+Puerto.RicoPOP.2$commute [
+  Puerto.RicoPOP.1$tranwork == 13 
+] <- "Passenger, Private vehicle"
+
+Puerto.RicoPOP.2$commute [
+  Puerto.RicoPOP.1$tranwork == 31 |
+  Puerto.RicoPOP.1$tranwork == 32 |
+  Puerto.RicoPOP.1$tranwork == 33 |
+  Puerto.RicoPOP.1$tranwork == 34 |
+  Puerto.RicoPOP.1$tranwork == 35 |
+  Puerto.RicoPOP.1$tranwork == 36 |
+  Puerto.RicoPOP.1$tranwork == 37 |
+  Puerto.RicoPOP.1$tranwork == 38 |
+  Puerto.RicoPOP.1$tranwork == 39
+] <- "Public Transportation"
+
+Puerto.RicoPOP.2$commute [
+  Puerto.RicoPOP.1$tranwork == 50
+] <- "On Bike"
+
+Puerto.RicoPOP.2$commute [
+  Puerto.RicoPOP.1$tranwork == 60
+] <- "On Foot"
+
+Puerto.RicoPOP.2$commute [
+  Puerto.RicoPOP.1$tranwork == 70
+] <- "Other"
+
+Puerto.RicoPOP.2$commute [
+  Puerto.RicoPOP.1$tranwork == 80
+] <- "Does Not Commute"
+
+```
+
+## Hypothesis
+
+The hypothesis builds upon the literature by addressing key themes related to social vulnerability, socioeconomic inequality, and the structural barriers marginalized populations face, especially in Puerto Rico.
+
+#### Hypothesis H0
+
+When controlling for variables such as age, ethnicity, and citizenship status in Puerto Rico, a statistically insignificant correlation emerges between an individual's Social Vulnerability Index (SVI) score, education attainment, and employment status. This finding invites further research into additional socioeconomic factors contributing to historically marginalized populations' stratification.
+
+#### Hypothesis H1
+
+When controlling for variables such as age, ethnicity, and citizenship status in Puerto Rico, a statistically significant correlation exists between an individual's Social Vulnerability Index (SVI) score, education attainment, and employment status. This finding underscores the urgent need for further research to address and alleviate socioeconomic inequality.
+
+## Methods
+
+The analysis employs linear regression models to examine the relationship between the SVI score and two independent variables: employment status and education attainment.
+
+The first model (Model 1) assesses the direct effects of employment status and education level on the SVI score. Specifically, it employs the formula: SVI score \~ employment status + education attainment to evaluate how each variable individually influences the SVI score.
+
+The second model (Model 2) includes an interaction term between education attainment and employment status, employing the formula SVI score \~ education attainment \* employment status. This model aims to test for moderation, exploring whether the relationship between education attainment and an individual's SVI score differs depending on employment status. By including interaction terms, Model 2 allowed for an assessment of how the effect of education attainment on an individual's SVI score might be moderated by whether an individual is employed or unemployed.
+
+```{r SUBSET.analysis.sample, include=FALSE}
+
+Puerto.RicoPOP.3 <- subset(Puerto.RicoPOP.2, ,
+  c(
+  Group.1, PumasAVG, PumasAVG.scale, age, sex, race, hispanic, disability, citizenship.stat,
+  education, eng.proficiency, eng.isolation, employment.stat, onSUBSIDY,
+  housing.payment, add.housing.payment, housing.development, household.dem, commute
+))
+
+colnames(Puerto.RicoPOP.3)[colnames(Puerto.RicoPOP.3) == "Group.1"] <- "municipality"
+colnames(Puerto.RicoPOP.3)[colnames(Puerto.RicoPOP.3) == "PumasAVG"] <- "sviAVG.score"
+colnames(Puerto.RicoPOP.3)[colnames(Puerto.RicoPOP.3) == "PumasAVG.scale"] <- "sviAVG.scale"
+
+###
+
+Puerto.RicoPOP.4 <- subset(Puerto.RicoPOP.3, 
+    age >= 18 & hispanic == "Hispanic" & citizenship.stat == "Born USA, Citizen" &
+    (
+      education == "College Graduate" |
+      education == "Some College" | 
+      education == "High School Graduate" |
+      education == "Some High School" 
+    ),
+  c(
+    municipality, sviAVG.score, sviAVG.scale, age, sex, race, hispanic, citizenship.stat,
+    education, eng.proficiency, eng.isolation, employment.stat, onSUBSIDY,
+    housing.payment, add.housing.payment, housing.development, household.dem
+  )
+)
+
+analysisPOP <- na.omit(Puerto.RicoPOP.4)
+```
+
+### Results
+
+```{r P.Value.Function, include=FALSE}
+pvalue <- function(x, ...) {
+  # Construct vectors of data y, and groups (strata) g 
+  y <- unlist(x) 
+  g <- factor(rep(1:length(x), times=sapply(x, length))) 
+  if (is.numeric(y)) {
+    # Check the number of unique groups 
+    num_groups <- length(unique(g)) 
+    if (num_groups == 2) {
+      p <- t.test(y ~ g)$p.value
+    } else { 
+      p <- oneway.test(y ~ g)$p.value
+    }
+  } else {
+    p <- chisq.test(table(y, g))$p.value
+  }
+  # Format the p-value, using an HTML entity for the less-than sign.
+  # The initial empty string places the output on the line below the variable label.
+  c("", sub("<", "&lt;", format.pval(p, digits=3, eps=0.001)))
+}
+```
+
+#### Bivariate Analysis
+
+```{r Bivariate.Analysis, echo=FALSE, message=FALSE, warning=FALSE}
+
+analysisPOP$sex <- factor(
+  analysisPOP$sex,
+  levels = c(
+    "Male", "Female"
+  ))
+
+analysisPOP$race <- factor(
+  analysisPOP$race,
+  levels = c(
+    "White",
+    "Asian",
+    "Black or African American",
+    "American Indian or Alaska Native",
+    "Other Race",
+    "Multiracial"
+  ))
+
+analysisPOP$education <- factor(
+  analysisPOP$education,
+  levels = c(
+    "College Graduate",
+    "Some College",
+    "High School Graduate",
+    "Some High School",
+    "Junior High",
+    "Elementary",
+    "Unknown, No Formal Education"
+  ))
+
+table1(~ age + sex + race + hispanic + citizenship.stat + education + employment.stat + municipality | sviAVG.scale, data = analysisPOP,
+       overall = FALSE,
+       extra.col = list("P-Value" = pvalue),
+       topclass = "Rtable1-zebra",
+       caption = "<B>Descriptive Distribution of Population by SVI<B/>",
+       footnote = "<i>Caption<i/>"
+       )
+
+```
+
+#### Linear Regression
+
+```{r Linear.Regression, include=FALSE}
+
+analysisPOP$employment.stat <- as.factor(analysisPOP$employment.stat)
+analysisPOP$education <- factor(analysisPOP$education, 
+                                levels = c("Some High School", "High School Graduate", 
+                                           "Some College", "College Graduate"))
+
+```
+
+```{r Linear.Regression.M1, echo=FALSE}
+
+m1 <- lm(sviAVG.score ~ employment.stat + education, data = analysisPOP)
+
+summary(m1)
+tab_model(m1)
+
+plot_model( 
+  m1, type = "pred", ci.lvl = 0.95,
+  terms = c("education", "employment.stat"),
+  title = "Predicted Social Vulnerability by Education and Employment"
+  )
+
+```
+
+The results from Model 1 indicate that employment status significantly affects the SVI score, with unemployed individuals showing a higher average SVI score. The coefficient for the unemployed is positive and statistically significant, suggesting that unemployment is associated with increased social vulnerability. However, the direct effects of education level on the SVI score are less clear. The coefficient for education High School Graduates is very small and statistically insignificant, indicating no meaningful effect. Similarly, the negative coefficients for education College and education Graduate suggest that higher levels of education are associated with slightly lower SVI scores. However, these effects are also minor and lack strong significance.
+
+```{r Linear.Regression.M2, echo=FALSE}
+
+m2 <- lm(sviAVG.score ~ education * employment.stat, data = analysisPOP)
+
+summary(m2)
+tab_model(m2)
+
+plot_model(
+  m2, type = "pred", ci.lvl = 0.95,
+  terms = c("education", "employment.stat"),
+  title = "Predicted Social Vulnerability by Education and Employment"
+  )
+```
+
+In contrast, Model 2, which includes interaction terms, shows that while the main effect of employment status remains significant, the interaction between education and employment status provides further nuance. Specifically, the interaction term for unemployed high school graduates is marginally significant, implying that the effect of unemployment on the SVI score may slightly differ for individuals with a high school education compared to others. However, the interaction terms for college-educated respondents and employment status are not statistically significant, suggesting that the relationship between education attainment and social vulnerability is not strongly influenced by employment status for these groups. Therefore, whether or not a highly educated individual is employed, their social vulnerability remains largely unchanged.
+
+Overall, both models suggest that employment status significantly impacts social vulnerability, but the role of education attainment is less apparent, particularly when considering interactions with employment status.
+
+## Discussion
+
+The results align with the hypothesis of social stratification theory, which posits that ascribed and achieved social characteristics shape socioeconomic trajectories. The significant effects of education attainment and employment status on social vulnerability suggest that these variables partially reflect structural inequalities impacting social vulnerability. 
+
+Future studies could combine additional variables, such as housing stability, access to utilities, or disaster preparedness, to expand the scope of this research and determine social vulnerability regarding emergency preparedness, relief, and recovery.
+
+## Conclusion
+
+The study examined the relationship between Social Vulnerability Index (SVI) scores, education attainment, and employment status in Puerto Rican citizens. The statistical analysis revealed several significant findings:
+
+Individuals with higher education attainment, such as high school graduates and college-educated respondents, maintained significantly higher SVI scores compared to those with less than a high school education. Furthermore, unemployed individuals demonstrated a modest but statistically significant increase in social vulnerability compared to employed individuals. No statistically significant interaction effects were identified, suggesting that the impact of education on social vulnerability does not vary significantly based on employment status.
+
+While the relationships observed were statistically significant, the results indicate that education attainment and employment status explain only a small proportion of the variation in social vulnerability amongst respondents. These findings support the test hypothesis, as statistically significant relationships were identified between social vulnerability, education attainment, and employment status. However, the model's limited explanatory strength suggests more complex relationships are melding together to increase social vulnerability in some respondents and not others depite these findings.
